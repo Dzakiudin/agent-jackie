@@ -38,7 +38,23 @@ Dibangun dengan filosofi **"Anti-Goblok"**: Agent ini tidak hanya menjalankan pe
 
 2.  **Pilih "Otak" (LLM)**
 
-    Buka file `config.py` dan pilih salah satu opsi dengan *uncomment* baris yang sesuai.
+    Buka file `config.py`.
+
+    **Cara Ganti:**
+    1.  Beri tanda `#` di depan baris opsi yang **TIDAK** dipakai.
+    2.  Hapus tanda `#` di depan baris opsi yang **MAU** dipakai.
+    3.  Save & Restart script python.
+    
+    ```python
+    # CONTOH: Mengaktifkan Opsi B (Cloud)
+    # --- OPTION A: LOCAL (Ollama) ---
+    # OPENROUTER_API_KEY = "dummy"
+    # ...
+
+    # --- OPTION B: CLOUD (OpenRouter) ---
+    OPENROUTER_API_KEY = "sk-or-..." # (Aktif)
+    OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions" # (Aktif)
+    ```
 
     ### Opsi A: Local (Ollama) - Gratis & Offline 🏠
     *   **Keunggulan**: Privasi 100%, Gratis, Tidak butuh internet.
@@ -55,6 +71,18 @@ Dibangun dengan filosofi **"Anti-Goblok"**: Agent ini tidak hanya menjalankan pe
         1.  Daftar di [OpenRouter](https://openrouter.ai/).
         2.  Dapatkan API Key.
         3.  Update `OPENROUTER_API_KEY` di `config.py` bagian Opsi B.
+
+    ### 💡 Tips Memilih Model
+
+    **Ollama (Local)**:
+    *   `codellama:7b` (Default): Bagus buat coding Python, tapi logika umumnya standar.
+    *   `llama3:8b`: Model "All-Rounder" terbaik untuk ukuran kecil. Coding oke, ngobrol oke.
+    *   `mistral:7b`: Alternatif ringan dan cepat.
+
+    **OpenRouter (Cloud)**:
+    *   `deepseek/deepseek-r1`: Paling cerdas & murah saat ini (recommended).
+    *   `openai/gpt-4o`: Paling canggih & stabil, tapi mahal.
+    *   `anthropic/claude-3-5-sonnet`: Jago coding & menulis natural.
 
 3.  **Install Dependencies**
     ```bash
