@@ -51,4 +51,33 @@ def read_file(path):
     except Exception as e:
         return f"Error: {e}"
 
+def write_file(path, content):
+    """
+    Safely writes content to a file.
+    """
+    print(f"[TOOL] Writing file: {path}")
+    try:
+        with open(path, 'w', encoding='utf-8') as f:
+            f.write(content)
+        return f"Successfully wrote to {path}"
+    except Exception as e:
+        return f"Error: {e}"
+
+def search_web(query):
+    """
+    Searches the web using DuckDuckGo.
+    """
+    print(f"[TOOL] Searching web: {query}")
+    try:
+        from ddgs import DDGS
+        results = DDGS().text(query, max_results=3)
+
+        if results:
+            return str(results)
+        return "No results found."
+    except Exception as e:
+        return f"Error searching web: {e}"
+
+
+
 

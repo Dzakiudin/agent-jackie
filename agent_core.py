@@ -5,8 +5,14 @@ import os
 import sys
 import urllib.request
 import urllib.error
+import subprocess
+import shlex
 import config
 import tools  # The Hands
+from difflib import SequenceMatcher
+
+def similarity(a, b):
+    return SequenceMatcher(None, a, b).ratio()
 
 
 # Force UTF-8 output for Windows Console
@@ -20,15 +26,32 @@ class OpenRouterLLM:
         self.model = config.MODEL_NAME
 
     def think(self, task, memory):
-        print(f"\n[LLM] Thinking with {self.model}...")
+        print(f"Thinking about: {task}")
+        
+        # 1. Retrieve Relevant Memories (Simple Semantic Search)
+        relevant_memories = []
+        for entry in memory:
+            # Check similarity with past tasks
+            past_task = entry.get('task', '')
+            score = similarity(task.lower(), past_task.lower())
+            
+            # Also check if lessons are relevant
+            lesson = entry.get('reflection', {}).get('lesson', '')
+            if score > 0.4 or (lesson and any(word in task.lower() for word in lesson.lower().split() if len(word) > 4)):
+                relevant_memories.append(f"- Past Task: {past_task}\n  Result: {entry.get('result')}\n  Lesson: {lesson}")
+
+        context_str = "\n".join(relevant_memories[-3:]) # Last 3 relevant
         
         # 1. Siapkan Context dari Memory (Sederhana dulu)
         memory_str = json.dumps(memory[-3:]) if memory else "No memory yet."
         
         # 2. Bangun System Prompt yang Kuat
         system_prompt = f"""
-You are an AI Agent operating on a Windows machine.
-Your goal is to help the user by breaking down tasks into Plans and Actions.
+You are an intelligent OS Agent.
+Your goal is to complete tasks by planning and executing actions.
+
+MEMORY CONTEXT (Past Lessons):
+{context_str if context_str else "No relevant past memories."}
 
 MEMORY (Last 3 interactions):
 {memory_str}
@@ -36,17 +59,23 @@ MEMORY (Last 3 interactions):
 TOOLS AVAILABLE:
 - execute_command(command): Run a shell command.
 - read_file(path): Read the contents of a file.
+- write_file(path, content): Create or overwrite a file with specific content.
+- search_web(query): Search the internet for information.
 
-RESPONSE FORMAT:
-You MUST respond with a VALID JSON object.
+
+STRICT RESPONSE FORMAT:
+You MUST respond with a RAW JSON object. DO NOT include any explanations, DO NOT use markdown code blocks. 
+Just the JSON.
+
 Examples:
 {{
-    "thought": "I need to check the config file.",
-    "action": "read_file",
-    "path": "config.py"
+    "thought": "I will create a greeting file.",
+    "action": "write_file",
+    "path": "hello.txt",
+    "content": "Hello World!"
 }}
 {{
-    "thought": "I will list files.",
+    "thought": "Checking directory.",
     "action": "execute_command",
     "command": "dir"
 }}
@@ -89,6 +118,51 @@ Examples:
                 "command": str(e)
             }
 
+    def _query_llm(self, system_prompt, user_msg):
+        """
+        Helper to call Ollama/OpenRouter and robustly extract JSON.
+        """
+        import re
+
+        data = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_msg}
+            ],
+            "max_tokens": 1000,
+            "temperature": 0.1 # Low temp for strict JSON
+        }
+        
+        req = urllib.request.Request(
+            self.url,
+            data=json.dumps(data).encode('utf-8'),
+            headers={
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json"
+            }
+        )
+        
+        with urllib.request.urlopen(req, timeout=60) as response:
+            result = json.loads(response.read().decode('utf-8'))
+            content = result['choices'][0]['message']['content']
+            
+            # --- ROBUST JSON EXTRACTION ---
+            # Try to find JSON block in markdown
+            json_match = re.search(r'```json\s*(.*?)\s*```', content, re.DOTALL)
+            if json_match:
+                return json.loads(json_match.group(1))
+            
+            # Try to find raw JSON object
+            json_match = re.search(r'\{.*\}', content, re.DOTALL)
+            if json_match:
+                return json.loads(json_match.group(0))
+            
+            # Fallback: Just try parsing the whole thing
+            return json.loads(content)
+
+
+
     def reflect(self, task, plan, result):
         print(f"\n[REFLECTION] Analyzing result...")
         
@@ -97,8 +171,10 @@ You are an AI Agent's Conscience.
 Analyze the recent action and its result.
 Did it succeed? What did we learn?
 
-RESPONSE FORMAT:
-JSON ONLY.
+STRICT RESPONSE FORMAT:
+You MUST respond with a RAW JSON object. DO NOT include any explanations, DO NOT use markdown code blocks.
+Just the JSON.
+
 {
     "success": true/false,
     "error_analysis": "Why it failed (if applicable)",
@@ -106,6 +182,7 @@ JSON ONLY.
     "confidence": 0.0 to 1.0
 }
         """
+
         
         user_msg = f"""
 TASK: {task}
@@ -203,6 +280,20 @@ class SimpleAgent:
                 path = plan.get('path')
                 print(f"Reading: {path}")
                 result = tools.read_file(path)
+
+
+            elif plan.get('action') == 'write_file':
+                path = plan.get('path')
+                content = plan.get('content', '')
+                print(f"Writing: {path}")
+                result = tools.write_file(path, content)
+
+            elif plan.get('action') == 'search_web':
+                query = plan.get('query')
+                print(f"Searching: {query}")
+                result = tools.search_web(query)
+
+
 
 
             
