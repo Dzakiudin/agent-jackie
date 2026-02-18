@@ -11,14 +11,21 @@ Dibangun dengan filosofi **"Anti-Goblok"**: Agent ini tidak hanya menjalankan pe
     *   **OBSERVE**: Melihat output/error dari tindakan tersebut.
     *   **REFLECT**: Menganalisis apakah tindakan sukses dan menyimpan pelajaran (_lesson_) ke memori.
 
+
 2.  **Tools (The Hands)**:
     *   `execute_command`: Eksekusi perintah terminal dengan **Safety Filter**.
     *   `read_file`: Membaca konten file untuk analisis.
     *   `write_file`: Membuat atau mengupdate file secara langsung.
+    *   `search_web`: Mencari informasi real-time di internet (DuckDuckGo).
 
 3.  **Memory (The Brain)**:
-    *   Menyimpan riwayat task, plan, result, dan reflection ke `memory.json`.
-    *   Belajar dari pengalaman sebelumnya (Context-aware).
+    *   **Retrieve**: Mengingat tugas masa lalu yang relevan menggunakan *Semantic Search* sederhana.
+    *   **Reflect**: Menganalisis hasil kerja dan menyimpan pelajaran (_lesson_).
+    *   **Store**: Menyimpan riwayat lengkap ke `memory.json`.
+
+4.  **Interaction (The Mouth)**:
+    *   **Final Answer**: Merangkum hasil kerja menjadi jawaban natural yang mudah dimengerti manusia.
+
 
 ## 🛠️ Instalasi
 
@@ -50,7 +57,9 @@ Dibangun dengan filosofi **"Anti-Goblok"**: Agent ini tidak hanya menjalankan pe
         ```
 
 3.  **Install Dependencies**
-    Agent ini sangat ringan, hanya butuh Python standard library. Tidak perlu `pip install`.
+    ```bash
+    pip install ddgs scikit-learn
+    ```
 
 ## 🚀 Cara Menjalankan
 
@@ -74,8 +83,9 @@ python agent_core.py
 - [x] Safety Sandbox
 - [x] Local LLM Support (Ollama)
 - [x] Write File Tool
-- [ ] Long-term Vector Memory
-- [ ] Internet Access (Search Tool)
+- [x] Internet Access (Search Tool)
+- [x] Semantic Memory (Lite)
+- [x] Final Answer (Conversational Response)
 
 ---
 Built with code and conscience.
