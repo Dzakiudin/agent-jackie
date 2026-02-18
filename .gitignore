@@ -1,0 +1,18 @@
+
+# Secrets
+config.py
+.env
+
+# User Data
+memory.json
+memory.json.bak
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# IDE
+.vscode/
+.idea/
