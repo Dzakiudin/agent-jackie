@@ -82,45 +82,31 @@ Examples:
         """
 
         # 3. Request ke OpenRouter
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-            "HTTP-Referer": "http://localhost:8000" # OpenRouter butuh ini
-        }
-        
-        data = {
-            "model": self.model,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": task}
-            ]
-        }
+        user_msg = f"Task: {task}"
         
         try:
-            req = urllib.request.Request(self.url, json.dumps(data).encode('utf-8'), headers)
-            with urllib.request.urlopen(req) as response:
-                result = json.load(response)
-                content = result['choices'][0]['message']['content']
+            # Use the robust helper
+            response = self._query_llm(system_prompt, user_msg)
+            
+            # 4. Handle Nested Plan Issues (CodeLlama quirk)
+            # Sometimes it returns { "task": "...", "plan": { "thought": "...", "action": "..." } }
+            if response.get("plan") and isinstance(response["plan"], dict):
+                print("[DEBUG] Flattening nested plan structure.")
+                return response["plan"]
                 
-                # Coba bersihkan markdown ```json jika ada
-                if "```json" in content:
-                    content = content.split("```json")[1].split("```")[0].strip()
-                elif "```" in content:
-                    content = content.split("```")[1].strip()
-                
-                return json.loads(content)
-        
+            return response
+            
         except Exception as e:
-            print(f"[ERROR] LLM Failed: {e}")
+            print(f"[ERROR] Thinking Failed: {e}")
             return {
                 "thought": "LLM Error. I will do nothing.",
                 "action": "error",
                 "command": str(e)
             }
 
-    def _query_llm(self, system_prompt, user_msg):
+    def _query_llm(self, system_prompt, user_msg, json_mode=True):
         """
-        Helper to call Ollama/OpenRouter and robustly extract JSON.
+        Helper to call Ollama/OpenRouter and robustly extract JSON or Text.
         """
         import re
 
@@ -131,7 +117,7 @@ Examples:
                 {"role": "user", "content": user_msg}
             ],
             "max_tokens": 1000,
-            "temperature": 0.1 # Low temp for strict JSON
+            "temperature": 0.1 if json_mode else 0.7 # Higher temp for creativity in text
         }
         
         req = urllib.request.Request(
@@ -147,16 +133,27 @@ Examples:
             result = json.loads(response.read().decode('utf-8'))
             content = result['choices'][0]['message']['content']
             
+            if not json_mode:
+                return content.strip()
+
             # --- ROBUST JSON EXTRACTION ---
-            # Try to find JSON block in markdown
-            json_match = re.search(r'```json\s*(.*?)\s*```', content, re.DOTALL)
+            # 1. Try to find JSON block in markdown
+            json_match = re.search(r'```json\s*(\{.*?\})\s*```', content, re.DOTALL)
             if json_match:
                 return json.loads(json_match.group(1))
             
-            # Try to find raw JSON object
+            # 2. Try to find raw JSON object (First { ... } block only)
+            # This regex looks for the first balanced curly braces
             json_match = re.search(r'\{.*\}', content, re.DOTALL)
             if json_match:
-                return json.loads(json_match.group(0))
+                try:
+                    return json.loads(json_match.group(0))
+                except json.JSONDecodeError:
+                    # If failed, try to be more aggressive: Find first '{' and last '}'
+                    start = content.find('{')
+                    end = content.rfind('}')
+                    if start != -1 and end != -1:
+                        return json.loads(content[start:end+1])
             
             # Fallback: Just try parsing the whole thing
             return json.loads(content)
@@ -172,14 +169,13 @@ Analyze the recent action and its result.
 Did it succeed? What did we learn?
 
 STRICT RESPONSE FORMAT:
-You MUST respond with a RAW JSON object. DO NOT include any explanations, DO NOT use markdown code blocks.
-Just the JSON.
-
+You MUST respond with a RAW JSON object. DO NOT include any explanations.
+Example:
 {
-    "success": true/false,
-    "error_analysis": "Why it failed (if applicable)",
-    "lesson": "A short, reusable rule for the future.",
-    "confidence": 0.0 to 1.0
+    "success": true,
+    "error_analysis": "None",
+    "lesson": "Always verify inputs.",
+    "confidence": 0.9
 }
         """
 
@@ -220,6 +216,34 @@ RESULT: {result}
         except Exception as e:
              print(f"[ERROR] Reflection Failed: {e}")
              return {"success": False, "lesson": "Reflection failed.", "error": str(e)}
+
+    def final_answer(self, task, result):
+        print(f"\n[ANSWER] Formulating response...")
+        
+        system_prompt = """
+You are a helpful AI Assistant named Jackie.
+Your job is to summarize the RESULT of the TASK for the user.
+- Keep it concise and friendly.
+- If the result is a search list, summarize the key finding.
+- If the result is a success message, confirm it.
+- If the result is an error, explain what happened.
+
+DO NOT output JSON. Just plain text.
+        """
+        
+        user_msg = f"""
+TASK: {task}
+RESULT: {str(result)[:2000]}  # Truncate to avoid context limit
+        """
+
+        try:
+            # Use text mode (json_mode=False)
+            answer = self._query_llm(system_prompt, user_msg, json_mode=False)
+            return answer
+            
+        except Exception as e:
+             return f"Task completed. Result: {str(result)[:100]}..."
+
 
 
 class SimpleAgent:
@@ -316,6 +340,12 @@ class SimpleAgent:
             }
             self.memory.append(entry)
             self.save_memory()
+
+            # FINAL ANSWER
+            print("\n--- RESPONSE ---")
+            answer = self.llm.final_answer(task, result)
+            print(f"Jackie: {answer}")
+
 
 
 if __name__ == "__main__":
