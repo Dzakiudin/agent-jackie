@@ -23,9 +23,10 @@ Dibangun dengan filosofi **"Anti-Goblok"**: Agent ini tidak hanya menjalankan pe
     *   **Reflect**: Menganalisis hasil kerja dan menyimpan pelajaran (_lesson_).
     *   **Store**: Menyimpan riwayat lengkap ke `memory.json`.
 
-4.  **Interaction (The Mouth)**:
-    *   **Final Answer**: Merangkum hasil kerja menjadi jawaban natural yang mudah dimengerti manusia.
-
+5.  **Self-Healing (The Immune System) 🚑**:
+    *   **Auto-Detect**: Mendeteksi error saat eksekusi kode (cth: Syntax Error).
+    *   **Auto-Fix**: Menganalisis error dan source code, lalu meminta LLM melakukan *rewrite* perbaikan.
+    *   **Retry**: Mencoba menjalankan ulang kode yang sudah diperbaiki secara otomatis.
 
 ## 🛠️ Instalasi
 
@@ -70,22 +71,22 @@ python agent_core.py
 
 ## 📂 Struktur Project
 
-*   `agent_core.py`: Otak utama (Loop Plan-Act-Reflect).
-*   `tools.py`: Interaksi OS (baca/tulis file, command).
+*   `agent_core.py`: Otak utama (Loop Plan-Act-Reflect-Heal).
+*   `tools.py`: Interaksi OS (baca/tulis file, command, web search).
 *   `memory.json`: Database pengetahuan agent.
 *   `config.py`: Konfigurasi LLM.
 *   `test_local_llm.py`: Script diagnosa koneksi Ollama.
 
-## 🔮 Roadmap
+## 🔮 Roadmap & Development Journey
 
-- [x] Basic Loop (Plan-Act-Observe)
-- [x] Reflection Layer
-- [x] Safety Sandbox
-- [x] Local LLM Support (Ollama)
-- [x] Write File Tool
-- [x] Internet Access (Search Tool)
-- [x] Semantic Memory (Lite)
-- [x] Final Answer (Conversational Response)
+- [x] **Phase 1: Basic Loop** (Plan-Act-Observe)
+- [x] **Phase 2: Reflection Layer** (Self-Correction)
+- [x] **Phase 3: Safety Sandbox** (Mencegah perintah berbahaya)
+- [x] **Phase 4: Local LLM Support** (Ollama Integration)
+- [x] **Phase 5: Tools Expansion** (Write File, Web Search)
+- [x] **Phase 6: Semantic Memory** (Mengingat masa lalu)
+- [x] **Phase 7: Multi-Step Automation** (Auto-Pilot / Chain of Thought)
+- [x] **Phase 8: Self-Healing Code** (Memperbaiki error sendiri)
 
 ---
 Built with code and conscience.

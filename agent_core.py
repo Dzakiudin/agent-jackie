@@ -10,6 +10,7 @@ import shlex
 import config
 import tools  # The Hands
 from difflib import SequenceMatcher
+import re
 
 def similarity(a, b):
     return SequenceMatcher(None, a, b).ratio()
@@ -64,20 +65,24 @@ TOOLS AVAILABLE:
 
 
 STRICT RESPONSE FORMAT:
-You MUST respond with a RAW JSON object. DO NOT include any explanations, DO NOT use markdown code blocks. 
-Just the JSON.
+You MUST respond with a RAW JSON object containing two keys: "thought" and "plan".
+"thought": A short explanation of your reasoning.
+"plan": A LIST of action objects.
 
-Examples:
+Example:
 {{
-    "thought": "I will create a greeting file.",
-    "action": "write_file",
-    "path": "hello.txt",
-    "content": "Hello World!"
-}}
-{{
-    "thought": "Checking directory.",
-    "action": "execute_command",
-    "command": "dir"
+    "thought": "I need to create a file and then run it.",
+    "plan": [
+        {{
+            "action": "write_file",
+            "path": "hello.py",
+            "content": "print('Hello')"
+        }},
+        {{
+            "action": "execute_command",
+            "command": "python hello.py"
+        }}
+    ]
 }}
         """
 
@@ -89,10 +94,13 @@ Examples:
             response = self._query_llm(system_prompt, user_msg)
             
             # 4. Handle Nested Plan Issues (CodeLlama quirk)
-            # Sometimes it returns { "task": "...", "plan": { "thought": "...", "action": "..." } }
             if response.get("plan") and isinstance(response["plan"], dict):
                 print("[DEBUG] Flattening nested plan structure.")
-                return response["plan"]
+                return response # Return the whole object, let run_cycle handle it
+            
+            # If response is just the plan list (old style), wrap it
+            if isinstance(response, list):
+                return {"thought": "No thought provided.", "plan": response}
                 
             return response
             
@@ -100,8 +108,7 @@ Examples:
             print(f"[ERROR] Thinking Failed: {e}")
             return {
                 "thought": "LLM Error. I will do nothing.",
-                "action": "error",
-                "command": str(e)
+                "plan": [{ "action": "error", "command": str(e) }]
             }
 
     def _query_llm(self, system_prompt, user_msg, json_mode=True):
@@ -144,21 +151,59 @@ Examples:
             
             # 2. Try to find raw JSON object (First { ... } block only)
             # This regex looks for the first balanced curly braces
-            json_match = re.search(r'\{.*\}', content, re.DOTALL)
-            if json_match:
-                try:
-                    return json.loads(json_match.group(0))
-                except json.JSONDecodeError:
-                    # If failed, try to be more aggressive: Find first '{' and last '}'
-                    start = content.find('{')
-                    end = content.rfind('}')
-                    if start != -1 and end != -1:
-                        return json.loads(content[start:end+1])
+            try:
+                # Find the first '{'
+                start_index = content.find('{')
+                if start_index != -1:
+                    # Use raw_decode to parse just the first object
+                    obj, end_index = json.JSONDecoder().raw_decode(content, idx=start_index)
+                    return obj
+            except json.JSONDecodeError:
+                pass
             
             # Fallback: Just try parsing the whole thing
             return json.loads(content)
 
 
+
+    def heal_code(self, task, error_msg, file_content=None):
+        print(f"\n[HEALING] Attempting to fix code...")
+        
+        system_prompt = """
+You are a Senior Python Developer.
+Your goal is to FIX the code based on the error message.
+
+STRICT RESPONSE FORMAT:
+You MUST respond with a RAW JSON object containing "thought" and "plan".
+"plan" must be a LIST of actions to fix the code (usually write_file).
+
+Example:
+{
+    "thought": "The error is a missing import. I will add it.",
+    "plan": [
+        {
+            "action": "write_file",
+            "path": "script.py",
+            "content": "import os\\n..."
+        }
+    ]
+}
+        """
+        
+        user_msg = f"""
+ORIGINAL TASK: {task}
+ERROR: {error_msg}
+SOURCE CODE:
+{file_content if file_content else "Not provided."}
+
+Fix the code and return the JSON plan.
+        """
+        
+        try:
+            return self._query_llm(system_prompt, user_msg)
+        except Exception as e:
+            print(f"[ERROR] Healing Failed: {e}")
+            return None
 
     def reflect(self, task, plan, result):
         print(f"\n[REFLECTION] Analyzing result...")
@@ -214,7 +259,7 @@ RESULT: {result}
                 
                 return json.loads(content)
         except Exception as e:
-             print(f"[ERROR] Reflection Failed: {e}")
+             # print(f"[ERROR] Reflection Failed: {e}")
              return {"success": False, "lesson": "Reflection failed.", "error": str(e)}
 
     def final_answer(self, task, result):
@@ -226,7 +271,7 @@ Your job is to summarize the RESULT of the TASK for the user.
 - Keep it concise and friendly.
 - If the result is a search list, summarize the key finding.
 - If the result is a success message, confirm it.
-- If the result is an error, explain what happened.
+- If the result is an error or "No action taken", report the failure honestly. DO NOT hallucinate actions you did not take.
 
 DO NOT output JSON. Just plain text.
         """
@@ -287,43 +332,126 @@ class SimpleAgent:
             
             if 'thought' in plan:
                 print(f"Prophecy: {plan['thought']}")
-            else:
-                print(f"Raw Response: {plan}")
 
             # ACT
-            result = "No action taken."
-            print("\n--- ACT ---")
-            if plan.get('action') == 'execute_command':
-                cmd = plan.get('command')
-                print(f"Executing: {cmd}")
-                
-                # Execute for real!
-                result = tools.safe_execute(cmd)
+            actions = []
             
-            elif plan.get('action') == 'read_file':
-                path = plan.get('path')
-                print(f"Reading: {path}")
-                result = tools.read_file(path)
-
-
-            elif plan.get('action') == 'write_file':
-                path = plan.get('path')
-                content = plan.get('content', '')
-                print(f"Writing: {path}")
-                result = tools.write_file(path, content)
-
-            elif plan.get('action') == 'search_web':
-                query = plan.get('query')
-                print(f"Searching: {query}")
-                result = tools.search_web(query)
-
-
-
-
+            # Robust Logic to extract list of actions
+            if isinstance(plan, dict):
+                 if "plan" in plan and isinstance(plan["plan"], list):
+                     actions = plan["plan"]
+                 elif "plan" in plan and isinstance(plan["plan"], dict):
+                      # Nested single plan
+                      actions = [plan["plan"]]
+                 else:
+                     # Single plan object (legacy)
+                     # Only if it has 'action' key
+                     if 'action' in plan:
+                        actions = [plan]
+            elif isinstance(plan, list):
+                actions = plan
             
-            # OBSERVE
-            print("\n--- OBSERVE ---")
-            print(f"Result: {result}")
+            final_result = []
+
+            if not actions:
+                 print("[WARN] No valid actions found in plan.")
+                 result = "No valid actions planned."
+            else:
+                for step in actions:
+                    action_type = step.get('action')
+                    thought = step.get('thought', 'Executing step...')
+                    print(f"\n--- ACT: {thought} ---")
+                    
+                    step_result = "No action taken."
+
+                    if action_type == 'execute_command':
+                        cmd = step.get('command')
+                        print(f"Executing: {cmd}")
+                        
+                        # 1. Try Execute
+                        exec_result = tools.safe_execute(cmd)
+                        
+                        # 2. Check Success
+                        if isinstance(exec_result, dict):
+                            step_result = exec_result['output']
+                            success = exec_result['success']
+                            
+                            # 3. SELF-HEALING LOOP
+                            retries = 0
+                            while not success and retries < 3:
+                                print(f"\n[⚠️] Execution Failed. Entering Self-Healing Mode (Attempt {retries+1}/3)...")
+                                error_msg = exec_result.get('error', 'Unknown Error')
+                                
+                                # Try to find relevant file to read for context
+                                # optimization: simplistic regex to find .py file in command
+                                target_file = None
+                                match = re.search(r'\b\w+\.py\b', cmd)
+                                file_content = ""
+                                if match:
+                                    target_file = match.group(0)
+                                    file_content = tools.read_file(target_file)
+
+                                # Ask LLM to fix
+                                heal_plan = self.llm.heal_code(task, error_msg, file_content)
+                                
+                                if heal_plan:
+                                    # Execute Healing Actions
+                                    print("Applying Fix...")
+                                    h_actions = []
+                                    if isinstance(heal_plan, dict):
+                                        h_actions = heal_plan.get('plan', [])
+                                    elif isinstance(heal_plan, list):
+                                        h_actions = heal_plan
+                                    
+                                    for h_step in h_actions:
+                                        h_action = h_step.get('action')
+                                        if h_action == 'write_file':
+                                            tools.write_file(h_step.get('path'), h_step.get('content'))
+                                            print(f"Fixed file: {h_step.get('path')}")
+                                    
+                                    # Retry Execution
+                                    print(f"Retrying: {cmd}")
+                                    exec_result = tools.safe_execute(cmd)
+                                    step_result = exec_result['output']
+                                    success = exec_result['success']
+                                
+                                retries += 1
+                            
+                            if success:
+                                 print("[✅] Fix Succeeded!")
+                            else:
+                                 print("[❌] Heal Failed after 3 attempts.")
+
+                        else:
+                            # Legacy fallback if tools.py didn't return dict (shouldn't happen)
+                            step_result = exec_result
+
+                    
+                    elif action_type == 'read_file':
+                        path = step.get('path')
+                        print(f"Reading: {path}")
+                        step_result = tools.read_file(path)
+
+                    elif action_type == 'write_file':
+                        path = step.get('path')
+                        content = step.get('content', '')
+                        print(f"Writing: {path}")
+                        step_result = tools.write_file(path, content)
+
+                    elif action_type == 'search_web':
+                        query = step.get('query')
+                        print(f"Searching: {query}")
+                        step_result = tools.search_web(query)
+                    
+                    elif action_type == 'error':
+                        step_result = f"Error: {step.get('command')}"
+                    
+                    # OBSERVE (Step Level)
+                    print(f"[Result]: {str(step_result)[:200]}..." if len(str(step_result)) > 200 else f"[Result]: {step_result}")
+                    final_result.append(f"Action: {action_type}\nResult: {step_result}")
+
+                # Consolidate results for reflection
+                result = "\n---\n".join(final_result)
             
             # REFLECT & STORE
             print("\n--- REFLECT ---")
@@ -342,7 +470,6 @@ class SimpleAgent:
             self.save_memory()
 
             # FINAL ANSWER
-            print("\n--- RESPONSE ---")
             answer = self.llm.final_answer(task, result)
             print(f"Jackie: {answer}")
 

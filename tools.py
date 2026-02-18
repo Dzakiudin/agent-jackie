@@ -6,13 +6,18 @@ import os
 def safe_execute(command):
     """
     Safely executes a command with a timeout.
+    Returns: dict {'success': bool, 'output': str, 'error': str}
     """
     print(f"[TOOL] Executing safely: {command}")
     
     # 1. Blacklist Check (Simple Protection)
     forbidden = ["rm ", "del ", "format ", "rd ", "shutdown"]
     if any(bad in command.lower() for bad in forbidden) and "echo" not in command.lower():
-        return f"Error: Command '{command}' is blacklisted for safety."
+        return {
+            "success": False,
+            "output": f"Error: Command '{command}' is blacklisted for safety.",
+            "error": "Blacklisted command"
+        }
 
     try:
         # 2. Execute with Timeout
@@ -27,12 +32,26 @@ def safe_execute(command):
         )
         
         output = result.stdout + result.stderr
-        return output.strip() if output else "Command executed with no output."
+        success = result.returncode == 0
+        
+        return {
+            "success": success,
+            "output": output.strip() if output else "Command executed with no output.",
+            "error": result.stderr if not success else ""
+        }
         
     except subprocess.TimeoutExpired:
-        return "Error: Command timed out (30s limit)."
+        return {
+            "success": False,
+            "output": "Error: Command timed out (30s limit).",
+            "error": "Timeout"
+        }
     except Exception as e:
-        return f"Error: {e}"
+        return {
+            "success": False,
+            "output": f"Error: {e}",
+            "error": str(e)
+        }
 
 def read_file(path):
     """
