@@ -1,19 +1,20 @@
 # Agent Jackie 🧠🤖
 
-**Agent Jackie** adalah eksperimen membangun *Self-Improving AI Agent* dari nol menggunakan Python dan DeepSeek R1.
+**Agent Jackie** adalah eksperimen membangun *Self-Improving AI Agent* dari nol menggunakan Python. 
 Dibangun dengan filosofi **"Anti-Goblok"**: Agent ini tidak hanya menjalankan perintah, tapi juga memiliki "hati nurani" untuk merenungkan hasil tindakannya (`Reflect`) dan belajar dari kesalahan (`Store Memory`).
 
 ## 🌟 Fitur Utama
 
 1.  **Siklus Hidup Cerdas**:
-    *   **PLAN**: Menganalisis tugas menggunakan LLM (DeepSeek R1).
-    *   **ACT**: Menjalankan perintah OS atau membaca file.
+    *   **PLAN**: Menganalisis tugas menggunakan LLM (DeepSeek R1 atau CodeLlama).
+    *   **ACT**: Menjalankan perintah OS, membaca, atau menulis file.
     *   **OBSERVE**: Melihat output/error dari tindakan tersebut.
     *   **REFLECT**: Menganalisis apakah tindakan sukses dan menyimpan pelajaran (_lesson_) ke memori.
 
 2.  **Tools (The Hands)**:
-    *   `execute_command`: Eksekusi perintah terminal dengan **Safety Filter** (mencegah perintah berbahaya seperti `rm -rf`).
+    *   `execute_command`: Eksekusi perintah terminal dengan **Safety Filter**.
     *   `read_file`: Membaca konten file untuk analisis.
+    *   `write_file`: Membuat atau mengupdate file secara langsung.
 
 3.  **Memory (The Brain)**:
     *   Menyimpan riwayat task, plan, result, dan reflection ke `memory.json`.
@@ -27,18 +28,29 @@ Dibangun dengan filosofi **"Anti-Goblok"**: Agent ini tidak hanya menjalankan pe
     cd agent-jackie
     ```
 
-2.  **Setup Konfigurasi**
-    Buat file `config.py` (file ini di-*ignore* oleh git demi keamanan):
-    ```python
-    # config.py
-    OPENROUTER_API_KEY = "sk-or-..." # Masukkan API Key OpenRouter Anda
-    OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-    MODEL_NAME = "deepseek/deepseek-r1"
-    ```
+2.  **Pilih "Otak" (LLM)**
+
+    ### Opsi A: Pakai Local (Ollama) - Gratis & Offline 🏠
+    *   Install [Ollama](https://ollama.com/).
+    *   Download model: `ollama run codellama:7b-instruct-q4_K_M`.
+    *   Edit `config.py`:
+        ```python
+        OPENROUTER_API_KEY = "dummy"
+        OPENROUTER_URL = "http://localhost:11434/v1/chat/completions"
+        MODEL_NAME = "codellama:7b-instruct-q4_K_M"
+        ```
+
+    ### Opsi B: Pakai Cloud (OpenRouter) ☁️
+    *   Dapatkan API Key di [OpenRouter](https://openrouter.ai/).
+    *   Edit `config.py`:
+        ```python
+        OPENROUTER_API_KEY = "sk-or-..." 
+        OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+        MODEL_NAME = "deepseek/deepseek-r1"
+        ```
 
 3.  **Install Dependencies**
-    Agent ini sangat ringan, hanya butuh Python standard library (dan `urllib` bawaan).
-    Tidak perlu `pip install` yang berat-berat dulu!
+    Agent ini sangat ringan, hanya butuh Python standard library. Tidak perlu `pip install`.
 
 ## 🚀 Cara Menjalankan
 
@@ -47,26 +59,24 @@ Jalankan core loop agent:
 python agent_core.py
 ```
 
-Saat muncul prompt `User (Input Task):`, cobalah perintah seperti:
-*   *"Cek apakah ada file bernama 'rahasia.txt'."*
-*   *"Buatkan file 'catatan.txt' isinya 'Hari ini saya belajar AI'."*
-*   *"Baca file 'tools.py' dan jelaskan isinya."*
-
 ## 📂 Struktur Project
 
-*   `agent_core.py`: Otak utama. Mengatur loop Plan-Act-Reflect.
-*   `tools.py`: Kumpulan fungsi untuk interaksi OS (baca file, jalanin command).
-*   `memory.json`: Database pengetahuan agent (Log & Lessons).
-*   `config.py`: Konfigurasi sensitif (API Keys).
+*   `agent_core.py`: Otak utama (Loop Plan-Act-Reflect).
+*   `tools.py`: Interaksi OS (baca/tulis file, command).
+*   `memory.json`: Database pengetahuan agent.
+*   `config.py`: Konfigurasi LLM.
+*   `test_local_llm.py`: Script diagnosa koneksi Ollama.
 
 ## 🔮 Roadmap
 
 - [x] Basic Loop (Plan-Act-Observe)
 - [x] Reflection Layer
 - [x] Safety Sandbox
+- [x] Local LLM Support (Ollama)
+- [x] Write File Tool
 - [ ] Long-term Vector Memory
 - [ ] Internet Access (Search Tool)
-- [ ] Self-Correction Mechanism
 
 ---
 Built with code and conscience.
+
