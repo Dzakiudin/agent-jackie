@@ -38,24 +38,23 @@ Dibangun dengan filosofi **"Anti-Goblok"**: Agent ini tidak hanya menjalankan pe
 
 2.  **Pilih "Otak" (LLM)**
 
-    ### Opsi A: Pakai Local (Ollama) - Gratis & Offline 🏠
-    *   Install [Ollama](https://ollama.com/).
-    *   Download model: `ollama run codellama:7b-instruct-q4_K_M`.
-    *   Edit `config.py`:
-        ```python
-        OPENROUTER_API_KEY = "dummy"
-        OPENROUTER_URL = "http://localhost:11434/v1/chat/completions"
-        MODEL_NAME = "codellama:7b-instruct-q4_K_M"
-        ```
+    Buka file `config.py` dan pilih salah satu opsi dengan *uncomment* baris yang sesuai.
 
-    ### Opsi B: Pakai Cloud (OpenRouter) ☁️
-    *   Dapatkan API Key di [OpenRouter](https://openrouter.ai/).
-    *   Edit `config.py`:
-        ```python
-        OPENROUTER_API_KEY = "sk-or-..." 
-        OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-        MODEL_NAME = "deepseek/deepseek-r1"
-        ```
+    ### Opsi A: Local (Ollama) - Gratis & Offline 🏠
+    *   **Keunggulan**: Privasi 100%, Gratis, Tidak butuh internet.
+    *   **Cara**:
+        1.  Install [Ollama](https://ollama.com/).
+        2.  Download model (pilih salah satu):
+            *   `ollama run codellama:7b-instruct-q4_K_M` (Coding)
+            *   `ollama run llama3:8b` (General)
+        3.  Update `config.py` bagian Opsi A.
+
+    ### Opsi B: Cloud (OpenRouter) ☁️
+    *   **Keunggulan**: Jauh lebih pintar, support model besar (DeepSeek R1, GPT-4, Claude).
+    *   **Cara**:
+        1.  Daftar di [OpenRouter](https://openrouter.ai/).
+        2.  Dapatkan API Key.
+        3.  Update `OPENROUTER_API_KEY` di `config.py` bagian Opsi B.
 
 3.  **Install Dependencies**
     ```bash
