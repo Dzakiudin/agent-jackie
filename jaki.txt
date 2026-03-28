@@ -1,0 +1,1 @@
+halo namaku ahmad dzakiudin, saya membuat agent menggunakan model codellama:7b-instruct-q4_K_M
